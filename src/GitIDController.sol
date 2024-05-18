@@ -18,21 +18,23 @@ contract GitIDController is Ownable {
     GitID public gitID;
     // Address of the signer who is authorized to sign minting messages
     address public signer;
+    // Minting fee
+    uint256 public mintFee;
 
     // Event emitted when the signer address is changed
     event SignerChanged(address indexed oldSigner, address indexed newSigner);
+    // Event emitted when the minting fee is changed
+    event MintFeeChanged(uint256 oldFee, uint256 newFee);
 
     /**
      * @dev Constructor sets the GitID contract address and the initial signer address.
      * @param gitIDAddress The address of the GitID contract.
      * @param signerAddress The initial signer address.
      */
-    constructor(
-        address gitIDAddress,
-        address signerAddress
-    ) Ownable(msg.sender) {
+    constructor(address gitIDAddress, address signerAddress) Ownable(msg.sender) {
         gitID = GitID(gitIDAddress);
         signer = signerAddress;
+        mintFee = 0.069 ether; // Initial mint fee set to 0.069 ether
     }
 
     /**
@@ -42,13 +44,8 @@ contract GitIDController is Ownable {
      * @param user The user's address.
      * @return The computed message hash.
      */
-    function getMessageHash(
-        string memory githubUsername,
-        uint256 chainId,
-        address user
-    ) public pure returns (bytes32) {
-        return
-            keccak256(abi.encodePacked(githubUsername, ".git", chainId, user));
+    function getMessageHash(string memory githubUsername, uint256 chainId, address user) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(githubUsername, ".git", chainId, user));
     }
 
     /**
@@ -57,10 +54,7 @@ contract GitIDController is Ownable {
      * @param signature The signature to verify.
      * @return True if the signature is valid, false otherwise.
      */
-    function verify(
-        bytes32 hash,
-        bytes memory signature
-    ) public view returns (bool) {
+    function verify(bytes32 hash, bytes memory signature) public view returns (bool) {
         return ECDSA.recover(hash, signature) == signer;
     }
 
@@ -71,17 +65,17 @@ contract GitIDController is Ownable {
      * @param user The address of the user who will receive the GitID NFT.
      * @param signature The signature to verify the mint request.
      */
-    function mint(
-        string memory githubUsername,
-        uint256 chainId,
-        address user,
-        bytes memory signature
-    ) external {
+    function mint(string memory githubUsername, uint256 chainId, address user, bytes memory signature) external payable {
         bytes32 messageHash = getMessageHash(githubUsername, chainId, user);
-        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(
-            messageHash
-        );
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(messageHash);
         require(verify(ethSignedMessageHash, signature), "Invalid signature");
+
+        // Check if the user is minting for the first time
+        if (gitID.addressToTokenId(user) == 0) {
+            require(msg.value == 0, "First mint is free");
+        } else {
+            require(msg.value == mintFee, "Mint fee is 0.069 ether");
+        }
 
         gitID.mint(user, githubUsername);
     }
@@ -102,5 +96,15 @@ contract GitIDController is Ownable {
         address oldSigner = signer;
         signer = newSigner;
         emit SignerChanged(oldSigner, newSigner);
+    }
+
+    /**
+     * @dev Sets a new mint fee.
+     * @param newFee The new mint fee.
+     */
+    function setMintFee(uint256 newFee) external onlyOwner {
+        uint256 oldFee = mintFee;
+        mintFee = newFee;
+        emit MintFeeChanged(oldFee, newFee);
     }
 }
