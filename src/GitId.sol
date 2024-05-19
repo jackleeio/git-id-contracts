@@ -16,7 +16,7 @@ contract GitID is ERC721, Ownable {
     string private _URI;
 
     // Address of the controller contract
-    address private _controller;
+    address public controller;
 
     // Event emitted when a new GitID is minted
     event Mint(address indexed user, uint256 indexed tokenId, string username);
@@ -33,7 +33,7 @@ contract GitID is ERC721, Ownable {
      * @param controller_ The address of the controller contract.
      */
     function setController(address controller_) public onlyOwner {
-        _controller = controller_;
+        controller = controller_;
     }
 
     /**
@@ -41,7 +41,7 @@ contract GitID is ERC721, Ownable {
      */
     modifier isController() {
         require(
-            msg.sender == _controller,
+            msg.sender == controller,
             "GitID: Caller is not the controller"
         );
         _;
